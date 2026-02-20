@@ -133,6 +133,12 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.lang-ring-card:hover {
+  background: rgba(255, 255, 255, 0.07);
 }
 
 .lang-ring-card.total-card {
@@ -156,7 +162,7 @@ body {
 
 .lang-ring-code {
   display: block;
-  font-size: 0.66rem;
+  font-size: 0.88rem;
   font-weight: 700;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.7);
@@ -165,7 +171,7 @@ body {
 
 .lang-ring-time {
   display: block;
-  font-size: 0.78rem;
+  font-size: 0.92rem;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.85);
 }
@@ -328,13 +334,20 @@ body {
 #calendar-section { margin-bottom: 10px; }
 
 #history-section .section-header {
-  justify-content: flex-end;
+  justify-content: space-between;
 }
 
 .history-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.current-date-label {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.35);
+  display: flex;
+  align-items: center;
 }
 
 .calendar-nav {
@@ -463,6 +476,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  max-height: 380px;
+  overflow-y: auto;
 }
 
 .video-log-item {
@@ -513,19 +528,55 @@ body {
   white-space: nowrap;
 }
 
+.video-log-filters {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.video-log-filters select {
+  flex: 1;
+  padding: 4px 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: #e8e8e8;
+  font-size: 0.72rem;
+}
+
 .video-log-badge {
-  font-size: 0.6rem;
+  font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
   padding: 2px 5px;
   border-radius: 4px;
-  background: rgba(99, 102, 241, 0.2);
-  color: #818cf8;
   flex-shrink: 0;
 }
 
+.video-log-timestamp {
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.25);
+  flex-shrink: 0;
+}
+
+.video-log-platform {
+  display: inline-block;
+  font-size: 0.55rem;
+  font-weight: 800;
+  padding: 1px 3px;
+  border-radius: 3px;
+  margin-right: 4px;
+  vertical-align: middle;
+  line-height: 1;
+}
+
+.video-log-platform.bili {
+  background: rgba(0, 174, 236, 0.25);
+  color: #00aeec;
+}
+
 .video-log-time {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   color: rgba(255, 255, 255, 0.4);
   flex-shrink: 0;
 }

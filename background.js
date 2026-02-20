@@ -16,6 +16,8 @@ const DEFAULT_SETTINGS = {
   showTotalInSplitRing: false,
   showStreakCounter: false,
   languageGoals: {},
+  bilibiliEnabled: false,
+  showCountryFlags: false,
 };
 
 const DEFAULTS = {
@@ -231,6 +233,7 @@ async function handleAddWatchTime({ lang, seconds, date, videoId, title, channel
     const existing = videoLog[key].find((e) => e.id === videoId);
     if (existing) {
       ensureEntryUid(existing);
+      if (!existing.addedAt) existing.addedAt = Date.now();
       const breakdown = ensureEntryLangBreakdown(existing);
       existing.seconds = (existing.seconds || 0) + seconds;
       breakdown[lang] = (breakdown[lang] || 0) + seconds;
@@ -239,7 +242,7 @@ async function handleAddWatchTime({ lang, seconds, date, videoId, title, channel
       if (lang && lang !== 'unknown') existing.lang = lang;
       if (!existing.lang) existing.lang = lang || 'unknown';
     } else {
-      const entry = { id: videoId, title: title || '', lang, seconds };
+      const entry = { id: videoId, title: title || '', lang, seconds, addedAt: Date.now() };
       if (channelId) entry.channelId = channelId;
       ensureEntryUid(entry);
       entry.langBreakdown = { [lang]: seconds };
@@ -357,7 +360,7 @@ async function handleGetChannelContext() {
   // Also try all YouTube tabs if active tab isn't YouTube
   if (!tabs.length || !tabs[0]?.url?.includes('youtube.com')) {
     try {
-      const result = extensionAPI.tabs.query({ url: '*://*.youtube.com/*' });
+      const result = extensionAPI.tabs.query({ url: ['*://*.youtube.com/*', '*://*.bilibili.com/*'] });
       const ytTabs = result?.then ? await result.catch(() => []) : (result || []);
       if (ytTabs.length) tabs = ytTabs;
     } catch { /* continue */ }

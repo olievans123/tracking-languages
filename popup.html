@@ -54,6 +54,7 @@
 
       <section id="history-section">
         <div class="section-header">
+          <span id="current-date" class="current-date-label"></span>
           <div class="history-actions">
             <button id="videos-btn" class="action-btn action-btn-inline">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -100,6 +101,15 @@
         <h2>Video Log</h2>
         <input type="date" id="video-log-date" />
       </div>
+      <div class="video-log-filters">
+        <select id="video-log-lang-filter">
+          <option value="">All languages</option>
+        </select>
+        <select id="video-log-sort">
+          <option value="recent">Recent</option>
+          <option value="most">Most watched</option>
+        </select>
+      </div>
       <div id="video-log-list"></div>
       <p id="video-log-empty" class="empty-msg hidden">No videos recorded</p>
     </div>
@@ -115,6 +125,13 @@
         <label class="toggle-row" for="trackingEnabled">
           <span class="toggle-label">Enable tracking</span>
           <input type="checkbox" id="trackingEnabled" class="toggle" checked />
+        </label>
+      </section>
+
+      <section class="card">
+        <label class="toggle-row" for="bilibiliEnabled">
+          <span class="toggle-label">Track Bilibili</span>
+          <input type="checkbox" id="bilibiliEnabled" class="toggle" />
         </label>
       </section>
 
@@ -151,6 +168,13 @@
         <label class="toggle-row" for="showStreakCounter">
           <span class="toggle-label">Show day streak</span>
           <input type="checkbox" id="showStreakCounter" class="toggle" />
+        </label>
+      </section>
+
+      <section class="card">
+        <label class="toggle-row" for="showCountryFlags">
+          <span class="toggle-label">Show country flags</span>
+          <input type="checkbox" id="showCountryFlags" class="toggle" />
         </label>
       </section>
 

@@ -1,10 +1,12 @@
-/* Tracking Languages – content script (youtube.com) */
+/* Tracking Languages – content script (youtube.com + bilibili.com) */
 
 const extensionAPI = (() => {
   if (typeof browser !== 'undefined' && browser?.runtime) return browser;
   if (typeof chrome !== 'undefined' && chrome?.runtime) return chrome;
   return null;
 })();
+
+const PLATFORM = window.location.hostname.includes('bilibili.com') ? 'bilibili' : 'youtube';
 
 // --- Constants ---
 
@@ -120,13 +122,131 @@ function sendMessage(msg) {
 
 // --- Language detection ---
 
-function getVideoId() {
+// --- YouTube helpers ---
+
+function getYouTubeVideoId() {
   const params = new URLSearchParams(window.location.search);
   return params.get('v') || null;
 }
 
+function isYouTubeWatchPage() {
+  return window.location.pathname === '/watch' && !!getYouTubeVideoId();
+}
+
+// --- Bilibili helpers ---
+
+function getBilibiliVideoId() {
+  const match = window.location.pathname.match(/^\/video\/([A-Za-z0-9]+)/);
+  return match ? match[1] : null;
+}
+
+function isBilibiliWatchPage() {
+  return window.location.pathname.startsWith('/video/') && !!getBilibiliVideoId();
+}
+
+let _lastBilibiliState = null;
+
+function requestBilibiliInitialState() {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener('message', handler);
+      resolve(value);
+    };
+    const msgId = `__bili_is_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const handler = (e) => {
+      if (e.data?.type === msgId) {
+        _lastBilibiliState = e.data.state || null;
+        finish(_lastBilibiliState);
+      }
+    };
+    try {
+      window.addEventListener('message', handler);
+    } catch {
+      resolve(null);
+      return;
+    }
+    try {
+      const s = document.createElement('script');
+      s.textContent = `(function(){
+        var st=null;
+        try{st=window.__INITIAL_STATE__;}catch(e){}
+        var data={type:'${msgId}',state:null};
+        if(st){try{data.state={
+          videoData:st.videoData||null,
+          upData:st.upData||null
+        };}catch(e){}}
+        window.postMessage(data,'*');
+      })();`;
+      const root = document.documentElement || document.head || document.body;
+      if (!root) { finish(null); return; }
+      root.appendChild(s);
+      s.remove();
+    } catch {
+      finish(null);
+      return;
+    }
+    setTimeout(() => finish(null), 300);
+  });
+}
+
+function captureBilibiliTitle() {
+  if (_lastBilibiliState?.videoData?.title) return _lastBilibiliState.videoData.title;
+  const titleEl = document.querySelector('.video-title, h1.video-title, [class*="video-title"]');
+  if (titleEl?.textContent?.trim()) return titleEl.textContent.trim();
+  if (document.title) return document.title.replace(/\s*_哔哩哔哩.*$/i, '').trim();
+  return '';
+}
+
+function captureBilibiliChannelId() {
+  if (_lastBilibiliState?.upData?.mid) return String(_lastBilibiliState.upData.mid);
+  try {
+    const link = document.querySelector('.up-name, [class*="up-name"], .username');
+    if (link?.href) {
+      const m = link.href.match(/space\.bilibili\.com\/(\d+)/);
+      if (m) return m[1];
+    }
+  } catch { /* continue */ }
+  return null;
+}
+
+function captureBilibiliChannelName() {
+  if (_lastBilibiliState?.upData?.name) return _lastBilibiliState.upData.name;
+  try {
+    const nameEl = document.querySelector('.up-name, [class*="up-name"], .username');
+    const name = nameEl?.textContent?.trim();
+    if (name) return name;
+  } catch { /* continue */ }
+  return '';
+}
+
+function detectBilibiliLanguage() {
+  // Check subtitle list from initial state
+  try {
+    const subs = _lastBilibiliState?.videoData?.subtitle?.list;
+    if (Array.isArray(subs) && subs.length > 0) {
+      for (const sub of subs) {
+        const lang = normalizeLanguageCode(sub.lan);
+        if (lang) return lang;
+      }
+    }
+  } catch { /* continue */ }
+
+  // Fall back to title analysis
+  const title = captureBilibiliTitle();
+  return detectFromTitle(title);
+}
+
+// --- Platform dispatch ---
+
+function getVideoId() {
+  return PLATFORM === 'bilibili' ? getBilibiliVideoId() : getYouTubeVideoId();
+}
+
 function isWatchPage() {
-  return window.location.pathname === '/watch' && !!getVideoId();
+  return PLATFORM === 'bilibili' ? isBilibiliWatchPage() : isYouTubeWatchPage();
 }
 
 function extractPlayerResponse() {
@@ -406,22 +526,18 @@ async function handlePageChange() {
   await attemptDetection();
 }
 
-function captureVideoTitle() {
-  // Try DOM first
+function captureYouTubeTitle() {
   const titleEl = getTitleElement();
   if (titleEl?.textContent?.trim()) return titleEl.textContent.trim();
-  // Try playerResponse
   const pr = extractPlayerResponse();
   if (pr?.videoDetails?.title) return pr.videoDetails.title;
-  // Last fallback: page title
   if (document.title) return document.title.replace(/\s*-\s*YouTube\s*$/i, '').trim();
   return '';
 }
 
-function captureChannelId() {
+function captureYouTubeChannelId() {
   const pr = extractPlayerResponse();
   if (pr?.videoDetails?.channelId) return pr.videoDetails.channelId;
-  // Fallback: try DOM
   try {
     const link = document.querySelector('ytd-channel-name a, #owner a');
     if (link?.href) {
@@ -432,7 +548,7 @@ function captureChannelId() {
   return null;
 }
 
-function captureChannelName() {
+function captureYouTubeChannelName() {
   const pr = extractPlayerResponse();
   if (pr?.videoDetails?.author) return pr.videoDetails.author;
   try {
@@ -443,12 +559,28 @@ function captureChannelName() {
   return '';
 }
 
+function captureVideoTitle() {
+  return PLATFORM === 'bilibili' ? captureBilibiliTitle() : captureYouTubeTitle();
+}
+
+function captureChannelId() {
+  return PLATFORM === 'bilibili' ? captureBilibiliChannelId() : captureYouTubeChannelId();
+}
+
+function captureChannelName() {
+  return PLATFORM === 'bilibili' ? captureBilibiliChannelName() : captureYouTubeChannelName();
+}
+
 async function attemptDetection() {
   let lang = null;
   try {
-    // Try page-level script injection first (works after SPA navigation)
-    await requestPlayerResponseFromPage();
-    lang = await detectLanguage();
+    if (PLATFORM === 'bilibili') {
+      await requestBilibiliInitialState();
+      lang = detectBilibiliLanguage();
+    } else {
+      await requestPlayerResponseFromPage();
+      lang = await detectLanguage();
+    }
   } catch {
     lang = null;
   }
@@ -477,7 +609,9 @@ async function attemptDetection() {
 // --- MutationObserver for video element replacement ---
 
 function observeVideoElement() {
-  const container = document.querySelector('#movie_player') || document.body;
+  const container = PLATFORM === 'bilibili'
+    ? (document.querySelector('#bilibili-player') || document.querySelector('#playerWrap') || document.body)
+    : (document.querySelector('#movie_player') || document.body);
   const observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
       if (mutation.type !== 'childList') continue;
@@ -520,13 +654,37 @@ if (extensionAPI?.runtime?.onMessage) {
 
 // --- Init ---
 
-// YouTube SPA navigation events
-window.addEventListener('yt-navigate-finish', onNavigate);
-window.addEventListener('spfdone', onNavigate);
+async function checkBilibiliEnabled() {
+  if (PLATFORM !== 'bilibili') return true;
+  try {
+    const res = await sendMessage({ type: 'getSettings' });
+    return res?.settings?.bilibiliEnabled === true;
+  } catch { return false; }
+}
 
-// Initial page load
-handlePageChange();
-observeVideoElement();
+(async () => {
+  const enabled = await checkBilibiliEnabled();
+  if (!enabled) return; // Bilibili tracking disabled in settings
+
+  if (PLATFORM === 'bilibili') {
+    // Bilibili SPA navigation: popstate + URL polling
+    window.addEventListener('popstate', onNavigate);
+    let lastUrl = window.location.href;
+    setInterval(() => {
+      if (window.location.href !== lastUrl) {
+        lastUrl = window.location.href;
+        onNavigate();
+      }
+    }, 1000);
+  } else {
+    // YouTube SPA navigation events
+    window.addEventListener('yt-navigate-finish', onNavigate);
+    window.addEventListener('spfdone', onNavigate);
+  }
+
+  handlePageChange();
+  observeVideoElement();
+})();
 
 // Export for testing
 if (typeof module !== 'undefined' && module.exports) {

@@ -211,12 +211,22 @@
       meta.className = 'lang-ring-meta';
       const codeEl = document.createElement('span');
       codeEl.className = 'lang-ring-code';
-      codeEl.textContent = lang.toUpperCase();
+      const flag = showCountryFlags && LANG_FLAGS[lang] ? ' ' + LANG_FLAGS[lang] : '';
+      codeEl.textContent = lang.toUpperCase() + flag;
       const timeEl = document.createElement('span');
       timeEl.className = 'lang-ring-time';
       timeEl.textContent = formatTime(seconds);
       meta.appendChild(codeEl);
       meta.appendChild(timeEl);
+
+      card.addEventListener('click', () => {
+        el('video-log-lang-filter').value = lang;
+        el('video-log-date').value = selectedDayKey || todayKey();
+        populateLangFilter(videoLog);
+        el('video-log-lang-filter').value = lang;
+        renderVideoLog(videoLog, el('video-log-date').value);
+        showView('video-log-view');
+      });
 
       card.appendChild(ring);
       card.appendChild(meta);
@@ -274,6 +284,16 @@
   };
 
   // --- Weekly chart ---
+
+  const LANG_FLAGS = {
+    en: '\u{1F1EC}\u{1F1E7}', es: '\u{1F1EA}\u{1F1F8}', fr: '\u{1F1EB}\u{1F1F7}',
+    zh: '\u{1F1E8}\u{1F1F3}', de: '\u{1F1E9}\u{1F1EA}', it: '\u{1F1EE}\u{1F1F9}',
+    pt: '\u{1F1E7}\u{1F1F7}', ja: '\u{1F1EF}\u{1F1F5}', ko: '\u{1F1F0}\u{1F1F7}',
+    ar: '\u{1F1F8}\u{1F1E6}', ru: '\u{1F1F7}\u{1F1FA}', tr: '\u{1F1F9}\u{1F1F7}',
+    sv: '\u{1F1F8}\u{1F1EA}', nl: '\u{1F1F3}\u{1F1F1}', pl: '\u{1F1F5}\u{1F1F1}',
+    el: '\u{1F1EC}\u{1F1F7}', th: '\u{1F1F9}\u{1F1ED}', vi: '\u{1F1FB}\u{1F1F3}',
+    hi: '\u{1F1EE}\u{1F1F3}', id: '\u{1F1EE}\u{1F1E9}',
+  };
 
   const LANG_COLORS = {
     en: '#3ea6ff', es: '#f59e0b', fr: '#8b5cf6', de: '#ef4444', it: '#10b981',
@@ -412,20 +432,58 @@
 
   // --- Video log ---
 
+  const isBilibiliVideo = (id) => typeof id === 'string' && /^BV/i.test(id);
+
+  const getVideoUrl = (id) => {
+    if (isBilibiliVideo(id)) return `https://www.bilibili.com/video/${encodeURIComponent(id)}`;
+    return `https://www.youtube.com/watch?v=${encodeURIComponent(id)}`;
+  };
+
+  const populateLangFilter = (videoLog) => {
+    const filter = el('video-log-lang-filter');
+    const current = filter.value;
+    const langs = new Set();
+    for (const entries of Object.values(videoLog)) {
+      if (!Array.isArray(entries)) continue;
+      for (const e of entries) {
+        if (e.lang) langs.add(e.lang);
+      }
+    }
+    filter.innerHTML = '<option value="">All languages</option>';
+    for (const lang of [...langs].sort()) {
+      const opt = document.createElement('option');
+      opt.value = lang;
+      opt.textContent = `${(SUPPORTED_LANGUAGES[lang] || lang).slice(0, 12)} (${lang.toUpperCase()})`;
+      filter.appendChild(opt);
+    }
+    filter.value = current || '';
+  };
+
   const renderVideoLog = (videoLog, dateStr) => {
     const list = el('video-log-list');
     const emptyMsg = el('video-log-empty');
     list.innerHTML = '';
 
+    const langFilter = el('video-log-lang-filter').value;
+    const sortMode = el('video-log-sort').value;
+
     const entries = videoLog[dateStr] || [];
-    if (entries.length === 0) {
+    let filtered = langFilter ? entries.filter((e) => e.lang === langFilter) : [...entries];
+
+    if (filtered.length === 0) {
       emptyMsg.classList.remove('hidden');
       return;
     }
     emptyMsg.classList.add('hidden');
 
-    const sorted = [...entries].sort((a, b) => b.seconds - a.seconds);
-    for (const entry of sorted) {
+    if (sortMode === 'most') {
+      filtered.sort((a, b) => (b.seconds || 0) - (a.seconds || 0));
+    } else {
+      // Recent: most recently added at top
+      filtered.reverse();
+    }
+
+    for (const entry of filtered) {
       const item = document.createElement('div');
       item.className = 'video-log-item';
       item.title = entry.title || entry.id;
@@ -433,12 +491,28 @@
       const info = document.createElement('div');
       info.className = 'video-log-info';
       info.addEventListener('click', () => {
-        window.open(`https://www.youtube.com/watch?v=${encodeURIComponent(entry.id)}`, '_blank');
+        window.open(getVideoUrl(entry.id), '_blank');
       });
+
+      if (entry.addedAt) {
+        const ts = document.createElement('span');
+        ts.className = 'video-log-timestamp';
+        const d = new Date(entry.addedAt);
+        const h = d.getHours();
+        const m = String(d.getMinutes()).padStart(2, '0');
+        ts.textContent = `${h}:${m}`;
+        info.appendChild(ts);
+      }
 
       const titleSpan = document.createElement('span');
       titleSpan.className = 'video-log-title';
-      titleSpan.textContent = entry.title || entry.id;
+      if (isBilibiliVideo(entry.id)) {
+        const bTag = document.createElement('span');
+        bTag.className = 'video-log-platform bili';
+        bTag.textContent = 'B';
+        titleSpan.appendChild(bTag);
+      }
+      titleSpan.appendChild(document.createTextNode(entry.title || entry.id));
       info.appendChild(titleSpan);
 
       // Language badge — clickable picker for unknown entries with a channelId
@@ -455,7 +529,6 @@
           const lang = select.value;
           if (!lang) return;
           await sendMessage({ type: 'setChannelLanguage', channelId: entry.channelId, lang });
-          // Refresh all data and re-render
           const [logRes, trackRes] = await Promise.all([
             sendMessage({ type: 'getVideoLog' }),
             sendMessage({ type: 'getTrackingData' }),
@@ -463,13 +536,17 @@
           videoLog = logRes?.videoLog || {};
           trackingData = trackRes?.trackingData || {};
           renderDashboard();
+          populateLangFilter(videoLog);
           renderVideoLog(videoLog, dateStr);
         });
         info.appendChild(select);
       } else {
         const badge = document.createElement('span');
         badge.className = 'video-log-badge';
-        badge.textContent = entry.lang || '?';
+        badge.textContent = (entry.lang || '?').toUpperCase();
+        const color = LANG_COLORS[entry.lang] || LANG_COLORS.unknown;
+        badge.style.background = color.startsWith('rgba') ? color : `${color}33`;
+        badge.style.color = color.startsWith('rgba') ? '#e8e8e8' : color;
         info.appendChild(badge);
       }
 
@@ -504,6 +581,7 @@
         videoLog = logRes?.videoLog || {};
         trackingData = trackRes?.trackingData || {};
         renderDashboard();
+        populateLangFilter(videoLog);
         renderVideoLog(videoLog, dateStr);
       });
 
@@ -559,6 +637,8 @@
       showTotalInSplitRing: el('showTotalInSplitRing').checked,
       showStreakCounter: el('showStreakCounter').checked,
       languageGoals: goals,
+      bilibiliEnabled: el('bilibiliEnabled').checked,
+      showCountryFlags: el('showCountryFlags').checked,
     };
   };
 
@@ -568,6 +648,8 @@
     el('progressRingMode').value = settings.progressRingMode === 'split' ? 'split' : 'total';
     el('showTotalInSplitRing').checked = settings.showTotalInSplitRing === true;
     el('showStreakCounter').checked = settings.showStreakCounter === true;
+    el('bilibiliEnabled').checked = settings.bilibiliEnabled === true;
+    el('showCountryFlags').checked = settings.showCountryFlags === true;
     buildTargetLanguagesList(normalizeSelectedLanguages(settings.targetLanguages), settings.languageGoals || {});
   };
 
@@ -664,6 +746,7 @@
       showTotalInSplitRing = effectiveSettings.showTotalInSplitRing === true;
       showStreakCounter = effectiveSettings.showStreakCounter === true;
       languageGoals = effectiveSettings.languageGoals || {};
+      showCountryFlags = effectiveSettings.showCountryFlags === true;
       renderDashboard();
       setStatus('Saved', 'success');
       setTimeout(() => setStatus(''), 1500);
@@ -682,6 +765,7 @@
   let showTotalInSplitRing = false;
   let showStreakCounter = false;
   let languageGoals = {};
+  let showCountryFlags = false;
   let calendarVisible = false;
   let selectedDayKey = null;
 
@@ -707,6 +791,7 @@
       showTotalInSplitRing: false,
       showStreakCounter: false,
       languageGoals: {},
+      showCountryFlags: false,
     };
     goalMinutes = settings.dailyGoalMinutes || 30;
     targetLanguages = normalizeSelectedLanguages(settings.targetLanguages);
@@ -714,6 +799,7 @@
     showTotalInSplitRing = settings.showTotalInSplitRing === true;
     showStreakCounter = settings.showStreakCounter === true;
     languageGoals = settings.languageGoals || {};
+    showCountryFlags = settings.showCountryFlags === true;
 
     return settings;
   };
@@ -727,12 +813,11 @@
 
     renderProgressRing(activeTotal, goalMinutes, activeData, progressRingMode, targetLanguages, showTotalInSplitRing, languageGoals);
 
-    const dateLabel = el('ring-date-label');
-    if (isToday) {
-      dateLabel.classList.add('hidden');
-    } else {
-      dateLabel.classList.remove('hidden');
-      el('ring-date-text').textContent = formatDateLabel(activeKey);
+    el('ring-date-label').classList.add('hidden');
+
+    const d = parseDateKey(activeKey);
+    if (d) {
+      el('current-date').textContent = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
     }
 
     el('streak-info').classList.toggle('hidden', !showStreakCounter);
@@ -756,6 +841,8 @@
 
     // Set video log date to today
     el('video-log-date').value = todayKey();
+    const today = parseDateKey(todayKey());
+    el('current-date').textContent = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
 
     // --- Event listeners ---
 
@@ -772,6 +859,9 @@
     });
 
     el('videos-btn').addEventListener('click', () => {
+      el('video-log-date').value = selectedDayKey || todayKey();
+      el('video-log-lang-filter').value = '';
+      populateLangFilter(videoLog);
       renderVideoLog(videoLog, el('video-log-date').value);
       showView('video-log-view');
     });
@@ -800,8 +890,15 @@
       renderCalendar(trackingData, goalMinutes * 60);
     });
 
-    // Video log date change
+    // Video log date/filter/sort change
     el('video-log-date').addEventListener('change', () => {
+      populateLangFilter(videoLog);
+      renderVideoLog(videoLog, el('video-log-date').value);
+    });
+    el('video-log-lang-filter').addEventListener('change', () => {
+      renderVideoLog(videoLog, el('video-log-date').value);
+    });
+    el('video-log-sort').addEventListener('change', () => {
       renderVideoLog(videoLog, el('video-log-date').value);
     });
 
@@ -823,6 +920,12 @@
     });
     el('showStreakCounter').addEventListener('change', () => {
       showStreakCounter = el('showStreakCounter').checked;
+      saveSettings();
+      renderDashboard();
+    });
+    el('bilibiliEnabled').addEventListener('change', saveSettings);
+    el('showCountryFlags').addEventListener('change', () => {
+      showCountryFlags = el('showCountryFlags').checked;
       saveSettings();
       renderDashboard();
     });

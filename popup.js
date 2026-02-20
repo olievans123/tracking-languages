@@ -133,7 +133,7 @@
   // --- Views ---
 
   const showView = (viewId) => {
-    for (const view of document.querySelectorAll('#dashboard-view, #settings-view, #video-log-view')) {
+    for (const view of document.querySelectorAll('#dashboard-view, #settings-view, #video-log-view, #totals-view')) {
       view.classList.toggle('hidden', view.id !== viewId);
     }
   };
@@ -591,6 +591,80 @@
     }
   };
 
+  // --- Totals ---
+
+  let totalsPeriod = '7';
+
+  const aggregateTotals = (data, period) => {
+    const langTotals = {};
+    const now = new Date();
+    for (const [key, dayData] of Object.entries(data)) {
+      if (!dayData || typeof dayData !== 'object') continue;
+      if (period !== 'all') {
+        const d = parseDateKey(key);
+        if (!d) continue;
+        const daysAgo = Math.floor((now - d) / 86400000);
+        if (daysAgo >= Number(period)) continue;
+      }
+      for (const [lang, seconds] of Object.entries(dayData)) {
+        if (!seconds || seconds <= 0) continue;
+        langTotals[lang] = (langTotals[lang] || 0) + seconds;
+      }
+    }
+    return Object.entries(langTotals)
+      .map(([lang, seconds]) => ({ lang, seconds }))
+      .sort((a, b) => b.seconds - a.seconds);
+  };
+
+  const formatTimeExact = (seconds) => {
+    if (!seconds || seconds <= 0) return '0m';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    if (h > 0 && m > 0) return `${h}h ${m}m`;
+    if (h > 0) return `${h}h`;
+    if (m > 0) return `${m}m`;
+    return `${s}s`;
+  };
+
+  const renderTotalsChart = () => {
+    const chart = el('totals-chart');
+    chart.innerHTML = '';
+    const items = aggregateTotals(trackingData, totalsPeriod);
+    if (items.length === 0) {
+      chart.innerHTML = '<p class="empty-msg">No data yet</p>';
+      return;
+    }
+    const maxSeconds = items[0].seconds;
+    for (const { lang, seconds } of items) {
+      const row = document.createElement('div');
+      row.className = 'totals-row';
+
+      const label = document.createElement('span');
+      label.className = 'totals-label';
+      const flag = showCountryFlags && LANG_FLAGS[lang] ? ' ' + LANG_FLAGS[lang] : '';
+      label.textContent = lang.toUpperCase() + flag;
+
+      const barWrap = document.createElement('div');
+      barWrap.className = 'totals-bar-wrap';
+      const bar = document.createElement('div');
+      bar.className = 'totals-bar';
+      const pct = Math.max((seconds / maxSeconds) * 100, 2);
+      bar.style.width = `${pct}%`;
+      bar.style.background = LANG_COLORS[lang] || LANG_COLORS.unknown;
+      barWrap.appendChild(bar);
+
+      const time = document.createElement('span');
+      time.className = 'totals-time';
+      time.textContent = formatTimeExact(seconds);
+
+      row.appendChild(label);
+      row.appendChild(barWrap);
+      row.appendChild(time);
+      chart.appendChild(row);
+    }
+  };
+
   // --- Settings ---
 
   const buildTargetLanguagesList = (selected, langGoals) => {
@@ -852,6 +926,26 @@
         setGlobalStatus(`Channel map error: ${err.message}`, 'error');
       });
     });
+    el('totals-btn').addEventListener('click', () => {
+      totalsPeriod = '7';
+      for (const btn of document.querySelectorAll('.totals-period-btn')) {
+        btn.classList.toggle('active', btn.dataset.period === totalsPeriod);
+      }
+      renderTotalsChart();
+      showView('totals-view');
+    });
+    el('totals-back-btn').addEventListener('click', () => {
+      showView('dashboard-view');
+    });
+    for (const btn of document.querySelectorAll('.totals-period-btn')) {
+      btn.addEventListener('click', () => {
+        totalsPeriod = btn.dataset.period;
+        for (const b of document.querySelectorAll('.totals-period-btn')) {
+          b.classList.toggle('active', b === btn);
+        }
+        renderTotalsChart();
+      });
+    }
     el('settings-btn').addEventListener('click', () => showView('settings-view'));
     el('settings-back-btn').addEventListener('click', () => {
       showView('dashboard-view');

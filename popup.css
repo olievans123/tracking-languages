@@ -880,3 +880,79 @@ body {
 .lang-color-hi { background: #fca5a5; }
 .lang-color-id { background: #67e8f9; }
 .lang-color-unknown { background: rgba(255, 255, 255, 0.2); }
+
+/* Totals view */
+.totals-period-selector {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.totals-period-btn {
+  flex: 1;
+  padding: 6px 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.totals-period-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e8e8e8;
+}
+
+.totals-period-btn.active {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.5);
+  color: #a5b4fc;
+}
+
+#totals-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.totals-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.totals-label {
+  width: 48px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+  flex-shrink: 0;
+}
+
+.totals-bar-wrap {
+  flex: 1;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.totals-bar {
+  height: 100%;
+  border-radius: 6px;
+  min-width: 2px;
+  transition: width 0.3s ease;
+}
+
+.totals-time {
+  width: 52px;
+  text-align: right;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  flex-shrink: 0;
+}

@@ -108,6 +108,12 @@
     return `${m}m`;
   };
 
+  const formatDateLabel = (key) => {
+    const d = parseDateKey(key);
+    if (!d) return key || '';
+    return `${DAY_LABELS[d.getDay()]}, ${MONTH_NAMES[d.getMonth()].slice(0, 3)} ${d.getDate()}`;
+  };
+
   const normalizeSelectedLanguages = (langs) => {
     if (!Array.isArray(langs)) return ['es', 'fr'];
     const normalized = [...new Set(
@@ -379,11 +385,18 @@
       else if (total > 0) cls += ' has-activity';
       if (isToday) cls += ' today';
       if (!isFuture) cls += ' selectable';
+      if (selectedDayKey === key) cls += ' selected';
       cell.className = cls;
 
       let timeStr = '';
       if (total > 0 && !isFuture) timeStr = `<span class="cal-day-time">${formatTimeShort(total)}</span>`;
       cell.innerHTML = `<span class="cal-day-num">${d}</span>${timeStr}`;
+      if (!isFuture) {
+        cell.addEventListener('click', () => {
+          selectedDayKey = (key === todayKey()) ? null : key;
+          renderDashboard();
+        });
+      }
       grid.appendChild(cell);
     }
 
@@ -589,17 +602,7 @@
   };
 
   const mapCurrentChannelLanguage = async () => {
-    let tabs = await queryTabs({ active: true, currentWindow: true });
-    if (!tabs.length) {
-      tabs = await queryTabs({ active: true, lastFocusedWindow: true });
-    }
-    const activeTab = tabs[0];
-    if (!activeTab?.id) {
-      setGlobalStatus('No active tab found.', 'error');
-      return;
-    }
-
-    const context = await sendTabMessage(activeTab.id, { type: 'getChannelContext' });
+    const context = await sendMessage({ type: 'getChannelContext' });
     if (!context?.channelId) {
       setGlobalStatus('Open a YouTube watch page, then try again.', 'error');
       return;
@@ -607,17 +610,26 @@
 
     const channelLabel = context.channelName || context.channelId;
     const suggested = context.detectedLanguage && context.detectedLanguage !== 'unknown' ? context.detectedLanguage : '';
-    const allowed = Object.keys(SUPPORTED_LANGUAGES).join(', ');
-    const userInput = window.prompt(
-      `Set language for channel:\n${channelLabel}\n\nEnter code (${allowed})`,
-      suggested
-    );
-    if (userInput == null) return;
-    const lang = userInput.trim().toLowerCase();
-    if (!SUPPORTED_LANGUAGES[lang]) {
-      setGlobalStatus('Invalid language code.', 'error');
-      return;
-    }
+
+    // Show inline language picker
+    const picker = el('channel-picker');
+    const optionsEl = el('channel-picker-options');
+    el('channel-picker-label').textContent = channelLabel;
+    optionsEl.innerHTML = '';
+    picker.classList.remove('hidden');
+
+    const lang = await new Promise((resolve) => {
+      for (const [code, name] of Object.entries(SUPPORTED_LANGUAGES)) {
+        const btn = document.createElement('button');
+        btn.className = `channel-picker-btn${code === suggested ? ' suggested' : ''}`;
+        btn.textContent = code;
+        btn.title = name;
+        btn.addEventListener('click', () => resolve(code));
+        optionsEl.appendChild(btn);
+      }
+    });
+
+    picker.classList.add('hidden');
 
     const saveRes = await sendMessage({ type: 'setChannelLanguage', channelId: context.channelId, lang });
     if (!saveRes?.ok) {
@@ -671,6 +683,7 @@
   let showStreakCounter = false;
   let languageGoals = {};
   let calendarVisible = false;
+  let selectedDayKey = null;
 
   const setCalendarVisible = (visible) => {
     calendarVisible = !!visible;
@@ -707,10 +720,20 @@
 
   const renderDashboard = () => {
     const goalSeconds = goalMinutes * 60;
-    const todayData = trackingData[todayKey()];
-    const todayTotal = sumDay(todayData);
+    const activeKey = selectedDayKey || todayKey();
+    const activeData = trackingData[activeKey] || {};
+    const activeTotal = sumDay(activeData);
+    const isToday = !selectedDayKey || selectedDayKey === todayKey();
 
-    renderProgressRing(todayTotal, goalMinutes, todayData, progressRingMode, targetLanguages, showTotalInSplitRing, languageGoals);
+    renderProgressRing(activeTotal, goalMinutes, activeData, progressRingMode, targetLanguages, showTotalInSplitRing, languageGoals);
+
+    const dateLabel = el('ring-date-label');
+    if (isToday) {
+      dateLabel.classList.add('hidden');
+    } else {
+      dateLabel.classList.remove('hidden');
+      el('ring-date-text').textContent = formatDateLabel(activeKey);
+    }
 
     el('streak-info').classList.toggle('hidden', !showStreakCounter);
     if (showStreakCounter) {
@@ -763,6 +786,7 @@
         renderCalendar(trackingData, goalMinutes * 60);
       }
     });
+
 
     el('cal-prev').addEventListener('click', () => {
       calMonth--;

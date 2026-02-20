@@ -192,6 +192,15 @@ body {
   color: rgba(255, 255, 255, 0.35);
 }
 
+#ring-date-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
 #streak-info {
   display: flex;
   align-items: baseline;
@@ -413,6 +422,11 @@ body {
 
 .cal-day.today {
   outline: 1px solid rgba(99, 102, 241, 0.5);
+}
+
+.cal-day.selected {
+  outline: 1px solid rgba(236, 72, 153, 0.8);
+  background: rgba(236, 72, 153, 0.18);
 }
 
 /* Action button */
@@ -752,6 +766,45 @@ body {
 
 .status-dashboard:empty {
   min-height: 0;
+}
+
+/* Channel language picker */
+#channel-picker {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.channel-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.channel-picker-btn {
+  padding: 6px 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.channel-picker-btn:hover {
+  background: rgba(99, 102, 241, 0.2);
+  color: #e8e8e8;
+}
+
+.channel-picker-btn.suggested {
+  border-color: rgba(99, 102, 241, 0.5);
+  background: rgba(99, 102, 241, 0.15);
+  color: #a5b4fc;
 }
 
 /* Language bar colors */

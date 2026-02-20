@@ -43,6 +43,9 @@
           </div>
         </div>
         <div id="ring-language-circles" class="hidden"></div>
+        <div id="ring-date-label" class="hidden">
+          <span id="ring-date-text"></span>
+        </div>
         <div id="streak-info">
           <span id="streak-count">0</span>
           <span id="streak-label">day streak</span>
@@ -82,6 +85,12 @@
         </div>
       </section>
       <p class="status status-dashboard" id="dashboard-status" role="status" aria-live="polite"></p>
+    </div>
+
+    <!-- Channel language picker (inline overlay) -->
+    <div id="channel-picker" class="hidden">
+      <p id="channel-picker-label" class="card-title"></p>
+      <div id="channel-picker-options" class="channel-picker-grid"></div>
     </div>
 
     <!-- Video log view -->

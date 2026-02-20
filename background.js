@@ -341,6 +341,38 @@ async function handleSaveSettings(newSettings) {
   return { settings: merged };
 }
 
+async function handleGetChannelContext() {
+  if (!extensionAPI?.tabs) return null;
+  let tabs = [];
+  try {
+    const result = extensionAPI.tabs.query({ active: true, currentWindow: true });
+    tabs = result?.then ? await result.catch(() => []) : (result || []);
+  } catch { /* continue */ }
+  if (!tabs.length) {
+    try {
+      const result = extensionAPI.tabs.query({ active: true, lastFocusedWindow: true });
+      tabs = result?.then ? await result.catch(() => []) : (result || []);
+    } catch { /* continue */ }
+  }
+  // Also try all YouTube tabs if active tab isn't YouTube
+  if (!tabs.length || !tabs[0]?.url?.includes('youtube.com')) {
+    try {
+      const result = extensionAPI.tabs.query({ url: '*://*.youtube.com/*' });
+      const ytTabs = result?.then ? await result.catch(() => []) : (result || []);
+      if (ytTabs.length) tabs = ytTabs;
+    } catch { /* continue */ }
+  }
+  for (const tab of tabs) {
+    if (!tab?.id) continue;
+    try {
+      const result = extensionAPI.tabs.sendMessage(tab.id, { type: 'getChannelContext' });
+      const context = result?.then ? await result.catch(() => null) : result;
+      if (context?.channelId) return context;
+    } catch { /* continue */ }
+  }
+  return null;
+}
+
 function onMessage(message, _sender, sendResponse) {
   if (!message?.type) return;
 
@@ -372,6 +404,9 @@ function onMessage(message, _sender, sendResponse) {
       break;
     case 'saveSettings':
       promise = handleSaveSettings(message.settings);
+      break;
+    case 'getChannelContext':
+      promise = handleGetChannelContext();
       break;
     default:
       return;
